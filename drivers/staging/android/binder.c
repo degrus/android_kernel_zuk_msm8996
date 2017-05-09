@@ -1794,6 +1794,9 @@ static void binder_transaction(struct binder_proc *proc,
 			goto err_bad_object_type;
 		}
 	}
+	tcomplete->type = BINDER_WORK_TRANSACTION_COMPLETE;
+	list_add_tail(&tcomplete->entry, &thread->todo);
+
 	if (reply) {
 		BUG_ON(t->buffer->async_transaction != 0);
 		binder_pop_transaction(target_thread, in_reply_to);
@@ -1813,17 +1816,10 @@ static void binder_transaction(struct binder_proc *proc,
 	}
 	t->work.type = BINDER_WORK_TRANSACTION;
 	list_add_tail(&t->work.entry, target_list);
-	tcomplete->type = BINDER_WORK_TRANSACTION_COMPLETE;
-	list_add_tail(&tcomplete->entry, &thread->todo);
 	if (target_wait) {
-		if (reply || !(t->flags & TF_ONE_WAY)) {
-			preempt_disable();
+		if (reply || !(tr->flags & TF_ONE_WAY))
 			wake_up_interruptible_sync(target_wait);
-			preempt_enable_no_resched();
-		}
-		else {
-			wake_up_interruptible(target_wait);
-		}
+		else
 	}
 	return;
 
@@ -2520,11 +2516,10 @@ retry:
 			uint32_t cmd;
 
 			death = container_of(w, struct binder_ref_death, work);
-			if (w->type == BINDER_WORK_CLEAR_DEATH_NOTIFICATION) {
+			if (w->type == BINDER_WORK_CLEAR_DEATH_NOTIFICATION)
 				cmd = BR_CLEAR_DEATH_NOTIFICATION_DONE;
-			} else {
+			else
 				cmd = BR_DEAD_BINDER;
-			}
 			if (put_user(cmd, (uint32_t __user *)ptr))
 				return -EFAULT;
 			ptr += sizeof(uint32_t);
